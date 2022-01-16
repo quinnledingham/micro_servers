@@ -1,6 +1,7 @@
 # Implementing micro servers using socket programming
   
 The user can connect to the indirection server which will connect to the micro servers so the user can use the micro services.  
+The indirection server and the micro servers can all be running on a different machines.
   
 ![architecture](https://github.com/quinnledingham/MicroServicesServer/blob/main/images/architecture.PNG?raw=true)
   
