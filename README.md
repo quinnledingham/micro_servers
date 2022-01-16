@@ -1,5 +1,4 @@
-# MicroServicesServer
-Implementing micro servers using socket programming
+# Implementing micro servers using socket programming
   
 The user can connect to the indirection server which will connect to the micro servers so the user can use the micro services.  
   
