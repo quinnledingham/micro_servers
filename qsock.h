@@ -9,12 +9,6 @@ enum Socket_Types
 	UDP
 };
 
-enum
-{
-	Client_Socket,
-	Server_Socket,
-};
-
 #define TCP_BUFFER_SIZE 65536
 
 struct Address_Info
@@ -31,10 +25,12 @@ struct Socket
 {
 	int handle; // linux: file descriptor
 	int type; // TCP or UDP
-	Address_Info info; // info about server connected to on client
+	Address_Info info; // client: info about address of server connected to, server: info about server address
+
+	Address_Info recv_info; // most recent address that was received from (UDP)
 
 	b32 passive; // if true it waits for connection requests to come in (ie server)
-	Socket *other;
+	Socket *other; // filled in qsock_accept()
 };
 
 #include "qsock_linux.cpp"
@@ -76,19 +72,42 @@ qsock_free_socket(Socket socket)
 }
 
 internal int
-qsock_server_recv(Socket server, const char *buffer, int buffer_size)
+qsock_general_recv(Socket *socket, const char *buffer, int buffer_size)
 {
-	if (!server.passive) {
-		fprintf(stderr, "qsock_server_recv(): not a passive(server) socket\n");
-		return 0;
-	}
-
 	int bytes = 0;
 
-	switch(server.type)
+	// client
+	if (!socket->passive) {
+		if (socket->type == UDP) timeout(socket->handle);
+		bytes = qsock_recv(*socket, buffer, buffer_size, 0);
+		return bytes;
+	}
+
+	// server
+	switch(socket->type)
 	{
-		case TCP: bytes = qsock_recv_from(*server.other, buffer, buffer_size, 0, server.info); break;
-		case UDP: bytes = qsock_recv_from(server,        buffer, buffer_size, 0, server.info); break;
+		case TCP: bytes = qsock_recv(*socket->other, buffer, buffer_size, 0); break;
+		case UDP: bytes = qsock_recv_from(socket, buffer, buffer_size, 0); break;
+	}
+
+	return bytes;
+}
+
+internal int
+qsock_general_send(Socket socket, const char *buffer, int buffer_size)
+{
+	int bytes = 0;
+
+	// client
+	if (!socket.passive) {
+		bytes = qsock_send_to(socket, buffer, buffer_size, 0, socket.info);
+		return bytes;
+	}
+
+	switch(socket.type)
+	{
+		case TCP: bytes = qsock_send(*socket.other, buffer, buffer_size, 0); break;
+		case UDP: bytes = qsock_send_to(socket, buffer, buffer_size, 0, socket.recv_info); break;
 	}
 
 	return bytes;

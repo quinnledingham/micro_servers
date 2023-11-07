@@ -1,5 +1,5 @@
-#include "types.h"
-#include "qsock.h"
+#include "../../types.h"
+#include "../../qsock.h"
 
 internal void
 get_user_input(const char* prompt, char *buffer)
@@ -23,13 +23,16 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	Socket client = qsock_client(argv[1], argv[2], TCP);
+	Socket client = qsock_client(argv[1], argv[2], UDP);
 	char buffer[100];
 	
 	while(1) {
 		memset(buffer, 0, 100);
 		get_user_input("Enter a message:", buffer);
-		qsock_send(client, buffer, 100, 0);
+		qsock_general_send(client, buffer, 100);
+		memset(buffer, 0, 100);
+		qsock_general_recv(&client, buffer, 100);
+		printf("Recv: %s\n", buffer);
 	};
 
 	return 0;

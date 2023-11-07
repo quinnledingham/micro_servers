@@ -1,6 +1,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include <time.h>
 #include <malloc.h>
@@ -16,16 +18,20 @@ print_sockaddr(sockaddr_storage *address)
 	printf("sockaddr %d\n", address[0]);
 }
 
+// Waits for a recieve on sock. if none it returns 0.
+// https://www.it-swarm-fr.com/fr/c/udp-socket-set-timeout/1070229989/
 internal int
 timeout(int socket)
 {
 	struct timeval tv;
-	tv.tv_sec = 0;
-	tv.tv_usec = 100000;
+	tv.tv_sec = 1;
+	tv.tv_usec = 0;
 	
 	int received_packet = setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 	if (received_packet < 0) fprintf(stderr, "timeout(): error\n");
-
+	
+	fprintf(stderr, "\ntimeout: %d\n", received_packet);
+	
 	return received_packet;
 }
 
@@ -89,10 +95,15 @@ qsock_recv(Socket socket, const char *buffer, int buffer_size, int flags)
 }
 
 internal int
-qsock_recv_from(Socket socket, const char *buffer, int buffer_size, int flags, Address_Info info)
+qsock_recv_from(Socket *socket, const char *buffer, int buffer_size, int flags)
 {
-	int bytes = recvfrom(socket.handle, (void*)buffer, buffer_size, flags, NULL, NULL);
-	if (bytes == -1) perror("qsock_recv() error");
+	if(socket->recv_info.address != 0) free((void*)socket->recv_info.address);
+	socket->recv_info.address_length = sizeof(sockaddr);
+	socket->recv_info.address = (const char *)malloc(socket->recv_info.address_length);
+	socket->recv_info.family = socket->info.family;
+	
+	int bytes = recvfrom(socket->handle, (void*)buffer, buffer_size, flags, (sockaddr*)socket->recv_info.address, &socket->recv_info.address_length);
+	if (bytes == -1) perror("qsock_recv_from() error");
 	return bytes;
 }
 
@@ -100,14 +111,15 @@ internal int
 qsock_send(Socket socket, const char *buffer, int buffer_size, int flags)
 {
 	int bytes = send(socket.handle, (void*)buffer, buffer_size, flags);
+	if (bytes == -1) perror("qsock_send() error");
 	return bytes;
 }
 
 internal int
-qsock_send_from(Socket socket, const char *buffer, int buffer_size, int flags, Address_Info info)
+qsock_send_to(Socket socket, const char *buffer, int buffer_size, int flags, Address_Info info)
 {
-	int bytes = recvfrom(socket.handle, (void*)buffer, buffer_size, flags, NULL, NULL);
-	if (bytes == -1) perror("qsock_recv() error");
+	int bytes = sendto(socket.handle, (void*)buffer, buffer_size, flags, (sockaddr*)info.address, info.address_length);
+	if (bytes == -1) perror("qsock_send_to() error");
 	return bytes;
 }
 
@@ -165,4 +177,13 @@ qsock_accept(Socket *socket)
 	memcpy((void*)new_socket.info.address, (void*)&address, address_length);
 	
 	memcpy((void*)socket->other, (void*)&new_socket, sizeof(Socket));
+}
+
+internal const char*
+qsock_get_ip(Address_Info info)
+{
+	struct sockaddr_in *c = (struct sockaddr_in *)info.address;
+	char *ip = (char *)malloc(80);
+   	inet_ntop(info.family, &(c->sin_addr), ip, 80);
+   	return ip;
 }
