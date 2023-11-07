@@ -1,4 +1,3 @@
-#include "../../types.h"
 #include "../../qsock.h"
 
 internal void
@@ -23,7 +22,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	Socket client = qsock_client(argv[1], argv[2], UDP);
+	struct Socket client = qsock_client(argv[1], argv[2], UDP);
 	char buffer[100];
 	
 	while(1) {

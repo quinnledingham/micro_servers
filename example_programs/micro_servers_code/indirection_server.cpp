@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "../../types.h"
 #include "../../qsock.h"
 
 #include "buffer.h"
