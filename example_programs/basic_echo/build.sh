@@ -5,5 +5,5 @@
 # gcc src/voting.c src/buffer.c src/socketM.c -o build/voting
 # gcc src/driver.c -o build/driver
 
-gcc test_client.c -o ../../build/test_client
-gcc test_server.c -o ../../build/test_server
+gcc echo_client.c -o ../../build/echo_client
+gcc echo_server.c -o ../../build/echo_server

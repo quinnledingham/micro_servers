@@ -11,78 +11,19 @@
 
 #include "qsock.h"
 
-internal void
-print_sockaddr(struct sockaddr_storage *address)
-{
-	printf("sockaddr %d\n", address[0]);
-}
-
-// Waits for a recieve on sock. if none it returns 0.
+// Waits for a recieve on sock.
+// returns zero on success
 // https://www.it-swarm-fr.com/fr/c/udp-socket-set-timeout/1070229989/
-internal int
-timeout(int socket)
+internal void
+qsock_set_timeout(struct Socket socket, int seconds, int microseconds)
 {
 	struct timeval tv;
-	tv.tv_sec = 1;
-	tv.tv_usec = 0;
+	tv.tv_sec = seconds;
+	tv.tv_usec = microseconds;
 	
-	int received_packet = setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-	if (received_packet < 0) fprintf(stderr, "timeout(): error\n");
-	
-	fprintf(stderr, "\ntimeout: %d\n", received_packet);
-	
-	return received_packet;
-}
-
-internal struct Address_Info
-get_info(const char *ip, const char *port, int socket_type, struct addrinfo hints)
-{
-    printf("get_info(): ip: %s port: %s\n", ip, port);
-
-	struct addrinfo *server_info;
-	server_info = (struct addrinfo*)malloc(sizeof(struct addrinfo));
-
-	switch(socket_type)
-	{
-		case TCP: hints.ai_socktype = SOCK_STREAM; break;
-		case UDP: hints.ai_socktype = SOCK_DGRAM;  break;
-	}
-
-	getaddrinfo(ip, port, &hints, &server_info);
-
-	struct Address_Info info = {};
-	info.family = server_info->ai_family;
-	info.socket_type = server_info->ai_socktype;
-	info.protocol = server_info->ai_protocol;
-	info.address_length = server_info->ai_addrlen;
-
-	info.address = (const char *)malloc(info.address_length);
-	memcpy((void*)info.address, server_info->ai_addr, info.address_length);
-
-	free(server_info);
-
-	printf("get_info(): successful\n");
-	return info;
-}
-
-internal struct Address_Info
-get_other_info(const char *ip, const char *port, int socket_type)
-{
-	struct addrinfo hints = {};
-	hints.ai_family = AF_INET;
-
-	return get_info(ip, port, socket_type, hints);
-}
-
-internal struct Address_Info
-get_this_info(const char *port, int socket_type)
-{
-	struct addrinfo hints = {};
-	hints.ai_family = AF_INET;
-	hints.ai_flags = AI_PASSIVE;
-    hints.ai_protocol = 0;
-
-	return get_info(NULL, port, socket_type, hints);
+	// set socket option
+	int success = setsockopt(socket.handle, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+	if (success < 0) fprintf(stderr, "timeout(): error\n");
 }
 
 internal int
@@ -94,14 +35,9 @@ qsock_recv(struct Socket socket, const char *buffer, int buffer_size, int flags)
 }
 
 internal int
-qsock_recv_from(struct Socket *socket, const char *buffer, int buffer_size, int flags)
+qsock_recv_from(struct Socket socket, const char *buffer, int buffer_size, int flags, struct Address_Info *info)
 {
-	if(socket->recv_info.address != 0) free((void*)socket->recv_info.address);
-	socket->recv_info.address_length = sizeof(struct sockaddr);
-	socket->recv_info.address = (const char *)malloc(socket->recv_info.address_length);
-	socket->recv_info.family = socket->info.family;
-	
-	int bytes = recvfrom(socket->handle, (void*)buffer, buffer_size, flags, (struct sockaddr*)socket->recv_info.address, &socket->recv_info.address_length);
+	int bytes = recvfrom(socket.handle, (void*)buffer, buffer_size, flags, (struct sockaddr*)info->address, &info->address_length);
 	if (bytes == -1) perror("qsock_recv_from() error");
 	return bytes;
 }
@@ -120,29 +56,6 @@ qsock_send_to(struct Socket socket, const char *buffer, int buffer_size, int fla
 	int bytes = sendto(socket.handle, (void*)buffer, buffer_size, flags, (struct sockaddr*)info.address, info.address_length);
 	if (bytes == -1) perror("qsock_send_to() error");
 	return bytes;
-}
-
-internal int
-qsock_socket(struct Address_Info info)
-{
-	int handle = socket(info.family, info.socket_type, info.protocol);
-	if (handle < 0) fprintf(stderr, "qsock_socket(): socket() call failed\n");
-	return handle;
-}
-
-internal void
-qsock_connect(struct Socket socket)
-{
-	int error = connect(socket.handle, (struct sockaddr*)socket.info.address, socket.info.address_length);
-	if (error == -1) fprintf(stderr, "qsock_connect(): connect() call failed\n");
-}
-
-internal void
-qsock_bind(struct Socket socket)
-{
-	int error = bind(socket.handle, (struct sockaddr*)socket.info.address, socket.info.address_length);
-	if (error == -1) perror("sock_bind() error");
-	//print_sockaddr((sockaddr_storage*)address);
 }
 
 internal void
@@ -166,6 +79,7 @@ qsock_accept(struct Socket *socket)
 	}
 
 	struct Socket new_socket = {};
+
 	struct sockaddr address = {};
 	unsigned int address_length;
 
@@ -185,4 +99,66 @@ qsock_get_ip(struct Address_Info info)
 	char *ip = (char *)malloc(80);
    	inet_ntop(info.family, &(c->sin_addr), ip, 80);
    	return ip;
+}
+
+internal struct Address_Info
+addrinfo_to_address_info(struct addrinfo og)
+{
+	struct Address_Info info = {};
+	info.family = og.ai_family;
+	info.socket_type = og.ai_socktype;
+	info.protocol = og.ai_protocol;
+	info.address_length = og.ai_addrlen;
+
+	info.address = (const char *)malloc(info.address_length + 1);
+	memset((void*)info.address, 0, info.address_length + 1);
+	memcpy((void*)info.address, og.ai_addr, info.address_length);
+
+	return info;
+}
+
+// find a address for the socket that works
+// ip == NULL for passive to get wildcard address
+internal void
+init_socket(struct Socket *sock, const char *ip, const char *port)
+{
+	struct addrinfo hints = {};
+	hints.ai_family = AF_INET; //IPv4
+	if (sock->passive) hints.ai_flags = AI_PASSIVE; // returns address for bind/accept
+    hints.ai_protocol = 0;
+
+    switch(sock->type)
+	{
+		case TCP: hints.ai_socktype = SOCK_STREAM; break;
+		case UDP: hints.ai_socktype = SOCK_DGRAM;  break;
+	}
+
+	struct addrinfo *info = (struct addrinfo*)malloc(sizeof(struct addrinfo));
+	if (getaddrinfo(ip, port, &hints, &info)) fprintf(stderr, "getaddrinfo error");
+
+	// find address that works looping through addrinfo linked list
+	struct addrinfo *ptr;
+	for (ptr = info; ptr != NULL; ptr = ptr->ai_next) {
+		sock->handle = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
+		
+		if (sock->handle == -1) {
+			perror("qsock_socket(): socket() call failed");
+			continue;
+		}
+
+		if (sock->passive) {
+			// bind socket to address if passive socket everytime
+			if (bind(sock->handle, ptr->ai_addr, ptr->ai_addrlen) != -1) break;
+			perror("get_address_info(): bind() call failed");
+		} else {
+			// connect socket to address if not passive socket only when using TCP
+			if (sock->type == UDP || connect(sock->handle, ptr->ai_addr, ptr->ai_addrlen) != -1) break;
+			perror("get_address_info(): connect() call failed");
+		}
+	}
+
+	sock->info = addrinfo_to_address_info(*ptr);
+	sock->other = (struct Socket*)malloc(sizeof(struct Socket));
+
+	freeaddrinfo(info);
 }

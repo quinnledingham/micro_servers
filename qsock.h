@@ -10,22 +10,22 @@
 //#include <cstdint> // C++
 #include <string.h>
 
-typedef int8_t s8;
+typedef int8_t  s8;
 typedef int16_t s16;
 typedef int32_t s32;
 typedef int64_t s64;
-typedef s8 b8;
-typedef s32 b32;
+typedef s8      b8;
+typedef s32     b32;
 
-typedef uint8_t u8;
+typedef uint8_t  u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-typedef float r32;
+typedef float  r32;
 typedef double r64;
-typedef r32 f32;
-typedef r64 f64;
+typedef r32    f32;
+typedef r64    f64;
 
 #define function      static
 #define internal      static
@@ -59,12 +59,12 @@ struct Socket
 {
 	int handle; // linux: file descriptor
 	int type; // TCP or UDP
-	struct Address_Info info; // client: info about address of server connected to, server: info about server address
 
+	struct Address_Info info; // client: info about address of server connected to, server: info about server address
 	struct Address_Info recv_info; // most recent address that was received from (UDP)
 
 	b32 passive; // if true it waits for connection requests to come in (ie server)
-	struct Socket *other; // filled in qsock_accept()
+	struct Socket *other; // filled in qsock_accept(). it is the sending sock for server using TCP
 };
 
 #include "qsock_linux.c"
@@ -75,10 +75,10 @@ qsock_client(const char *ip, const char *port, int type)
 	struct Socket socket = {};
 	socket.type = type;
 	socket.passive = false;
-	socket.info = get_other_info(ip, port, socket.type);
-	socket.handle = qsock_socket(socket.info);
-	if (socket.type == TCP) qsock_connect(socket);
-	socket.other = (struct Socket*)malloc(sizeof(struct Socket));
+	init_socket(&socket, ip, port);
+
+	if (socket.type == UDP) qsock_set_timeout(socket, 1, 0);
+
 	printf("Client socket connected to ip: %s port: %s\n", ip, port);
 	return socket;
 }
@@ -89,11 +89,10 @@ qsock_server(const char *port, int type)
 	struct Socket socket = {};
 	socket.type = type;
 	socket.passive = true;
-	socket.info = get_this_info(port, socket.type);
-	socket.handle = qsock_socket(socket.info);
-	qsock_bind(socket);
+	init_socket(&socket, NULL, port);
+
 	if (socket.type == TCP) qsock_listen(socket);
-	socket.other = (struct Socket*)malloc(sizeof(struct Socket));
+
 	printf("Server socket set up with port %s\n", port);
 	return socket;
 }
@@ -110,18 +109,22 @@ qsock_general_recv(struct Socket *socket, const char *buffer, int buffer_size)
 {
 	int bytes = 0;
 
+	if(socket->recv_info.address != 0) free((void*)socket->recv_info.address);
+	socket->recv_info.address_length = sizeof(struct sockaddr);
+	socket->recv_info.address = (const char *)malloc(socket->recv_info.address_length);
+	socket->recv_info.family = socket->info.family;
+
 	// client
 	if (!socket->passive) {
-		if (socket->type == UDP) timeout(socket->handle);
-		bytes = qsock_recv(*socket, buffer, buffer_size, 0);
+		bytes = qsock_recv_from(*socket, buffer, buffer_size, 0, &socket->recv_info);
 		return bytes;
 	}
 
 	// server
 	switch(socket->type)
 	{
-		case TCP: bytes = qsock_recv(*socket->other, buffer, buffer_size, 0); break;
-		case UDP: bytes = qsock_recv_from(socket, buffer, buffer_size, 0); break;
+		case TCP: bytes = qsock_recv_from(*socket->other, buffer, buffer_size, 0, &socket->recv_info); break;
+		case UDP: bytes = qsock_recv_from(*socket,        buffer, buffer_size, 0, &socket->recv_info); break;
 	}
 
 	return bytes;
@@ -138,6 +141,7 @@ qsock_general_send(struct Socket socket, const char *buffer, int buffer_size)
 		return bytes;
 	}
 
+	// server
 	switch(socket.type)
 	{
 		case TCP: bytes = qsock_send(*socket.other, buffer, buffer_size, 0); break;
