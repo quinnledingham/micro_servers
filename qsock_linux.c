@@ -15,7 +15,7 @@
 // returns zero on success
 // https://www.it-swarm-fr.com/fr/c/udp-socket-set-timeout/1070229989/
 internal void
-qsock_set_timeout(struct Socket socket, int seconds, int microseconds)
+qsock_set_timeout(struct Socket socket, int seconds, int microseconds) 
 {
 	struct timeval tv;
 	tv.tv_sec = seconds;
@@ -89,6 +89,9 @@ qsock_accept(struct Socket *socket)
 	new_socket.info.address = (const char *)malloc(address_length);
 	memcpy((void*)new_socket.info.address, (void*)&address, address_length);
 	
+	close(socket->other->handle);
+	free((void*)socket->other->info.address);
+
 	memcpy((void*)socket->other, (void*)&new_socket, sizeof(struct Socket));
 }
 
@@ -99,6 +102,36 @@ qsock_get_ip(struct Address_Info info)
 	char *ip = (char *)malloc(80);
    	inet_ntop(info.family, &(c->sin_addr), ip, 80);
    	return ip;
+}
+
+internal const char*
+qsock_get_ip_from_web(const char *webname)
+{
+	printf("address: %s\n", webname);
+
+	struct addrinfo hints, *info;
+	memset(&hints, 0, sizeof(struct addrinfo));
+	info = (struct addrinfo*)malloc(sizeof(struct addrinfo));
+	hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(webname, NULL, &hints, &info)) perror("qsock_get_ip_from_web() getaddrinfo error\n");
+
+    struct sockaddr_in *address = (struct sockaddr_in *)info->ai_addr;
+    char *ip = (char *)malloc(200);
+    memset(ip, 0, 200);
+   	const char *dst = inet_ntop(info->ai_family, &(address->sin_addr), ip, 200);
+   	if (dst == 0) perror("inet_ntop error");
+
+   	printf("ip: %s\n", ip);
+   	return ip;
+
+	/*
+    struct Address_Info address_info = {};
+    address_info.family = info->ai_family;
+    address_info.address = (void*)info->ai_addr;
+    printf("YO: %p\n", address_info.address);
+    return qsock_get_ip(address_info);
+    */
 }
 
 internal struct Address_Info
@@ -125,7 +158,7 @@ init_socket(struct Socket *sock, const char *ip, const char *port)
 	struct addrinfo hints = {};
 	hints.ai_family = AF_INET; //IPv4
 	if (sock->passive) hints.ai_flags = AI_PASSIVE; // returns address for bind/accept
-    hints.ai_protocol = 0;
+    //hints.ai_protocol = 0;
 
     switch(sock->type)
 	{

@@ -1,14 +1,15 @@
 #ifndef QSOCK_H
 #define QSOCK_H
 
+#include <unistd.h>
+#include <string.h>
+
 #ifndef TYPES_H
 #define TYPES_H
 
-#include <unistd.h>
 #include <stdbool.h> // C
 #include <stdint.h> // C
 //#include <cstdint> // C++
-#include <string.h>
 
 typedef int8_t  s8;
 typedef int16_t s16;
@@ -137,7 +138,8 @@ qsock_general_send(struct Socket socket, const char *buffer, int buffer_size)
 
 	// client
 	if (!socket.passive) {
-		bytes = qsock_send_to(socket, buffer, buffer_size, 0, socket.info);
+		bytes = qsock_send(socket, buffer, buffer_size, 0);
+		//bytes = qsock_send_to(socket, buffer, buffer_size, 0, socket.info);
 		return bytes;
 	}
 

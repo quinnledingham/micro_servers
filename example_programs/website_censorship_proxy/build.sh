@@ -1,0 +1,1 @@
+gcc proxy.c -o ../../build/wcp_proxy
