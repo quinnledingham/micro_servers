@@ -1,12 +1,4 @@
-#include <unistd.h>
-#include <string.h>
-#include <stdbool.h> // C
-#include <stdint.h> // C
-//#include <cstdint> // C++
-
-#include "defines.h"
-
-#include "../../qsock.h"
+#include <basic.h>
 
 internal void
 get_user_input(const char* prompt, char *buffer)
@@ -23,24 +15,35 @@ get_user_input(const char* prompt, char *buffer)
     buffer[bytes] = '\0';
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	if (argc != 3) {
 		fprintf(stderr, "run like this: ./client <ip> <port>\n");
 		return 1;
 	}
 
-	struct Socket client = qsock_client(argv[1], argv[2], UDP);
+	qsock_init_qsock();
+
+	struct QSock_Socket client = {};
+	if (!qsock_client(&client, argv[1], argv[2], TCP)) {
+		return 1;
+	}
 	char buffer[100];
+	s32 bytes = 0;
 	
 	while(1) {
 		memset(buffer, 0, 100);
 		get_user_input("Enter a message:", buffer);
-		qsock_general_send(client, buffer, 100);
+		bytes = qsock_send(client, buffer, 100);
+		if (bytes < 0) break;
+		
 		memset(buffer, 0, 100);
-		qsock_general_recv(&client, buffer, 100);
+		
+		bytes = qsock_recv(client, buffer, 100);
+		if (bytes < 0) break;
 		printf("Recv: %s\n", buffer);
 	};
+
+	printf("Closing Client\n");
 
 	return 0;
 }
