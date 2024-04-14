@@ -1,4 +1,24 @@
-#include "../../qsock.h"
+#ifdef OS_WINDOWS
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
+#include <windows.h>
+
+#elif OS_LINUX
+
+#include <unistd.h>
+
+#endif // OS
+
+#include <string.h>
+#include <stdbool.h> // C
+#include <stdint.h> // C
+//#include <cstdint> // C++
+
+#include "defines.h"
+#include "qsock.h"
 
 int main(int argc, char *argv[])
 {

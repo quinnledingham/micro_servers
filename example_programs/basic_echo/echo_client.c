@@ -1,3 +1,11 @@
+#include <unistd.h>
+#include <string.h>
+#include <stdbool.h> // C
+#include <stdint.h> // C
+//#include <cstdint> // C++
+
+#include "defines.h"
+
 #include "../../qsock.h"
 
 internal void

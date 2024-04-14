@@ -1,110 +1,117 @@
 #ifndef QSOCK_H
 #define QSOCK_H
 
-#include <unistd.h>
-#include <string.h>
+enum QSock_Family {
+	INET,
+	INET6
+};
 
-#ifndef TYPES_H
-#define TYPES_H
+enum QSock_Socket_Type {
+	STREAM,   // TCP
+	DATAGRAMS // UDP
+};
 
-#include <stdbool.h> // C
-#include <stdint.h> // C
-//#include <cstdint> // C++
-
-typedef int8_t  s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef int64_t s64;
-typedef s8      b8;
-typedef s32     b32;
-
-typedef uint8_t  u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef float  r32;
-typedef double r64;
-typedef r32    f32;
-typedef r64    f64;
-
-#define function      static
-#define internal      static
-#define local_persist static
-#define global        static
-
-#define ARRAY_COUNT(n)     (sizeof(n) / sizeof(n[0]))
-#define ARRAY_MALLOC(t, n) ((t*)platform_malloc(n * sizeof(t)))
-
-#endif //TYPES_H
-
-enum Socket_Types
-{
+enum QSock_Protocol {
 	TCP,
 	UDP
 };
 
 #define TCP_BUFFER_SIZE 65536
 
-struct Address_Info
-{
-	int family;
-	int socket_type;
-	int protocol;
+struct QSock_Address_Info {
+	enum QSock_Family      family;
+	enum QSock_Socket_Type socket_type;
+	enum QSock_Protocol    protocol;
 
 	u32 address_length;
 	const char *address; // sockaddr (socket address)
 };
 
-struct Socket
-{
-	int handle; // linux: file descriptor
-	int type; // TCP or UDP
+struct QSock_Socket {
+	s32 handle; // linux: file descriptor
+	enum QSock_Protocol protocol; // TCP or UDP
 
-	struct Address_Info info; // client: info about address of server connected to, server: info about server address
-	struct Address_Info recv_info; // most recent address that was received from (UDP)
+	struct QSock_Address_Info info; // client: info about address of server connected to, server: info about server address
+	struct QSock_Address_Info recv_info; // most recent address that was received from (UDP)
 
-	b32 passive; // if true it waits for connection requests to come in (ie server)
-	struct Socket *other; // filled in qsock_accept(). it is the sending sock for server using TCP
+	bool32 passive; // if true it waits for connection requests to come in (ie server)
+	struct QSock_Socket *other; // filled in qsock_accept(). it is the sending sock for server using TCP
 };
 
-#include "qsock_linux.c"
+#ifdef OS_WINDOWS
 
-internal struct Socket
-qsock_client(const char *ip, const char *port, int type)
-{
-	struct Socket socket = {};
-	socket.type = type;
-	socket.passive = false;
-	init_socket(&socket, ip, port);
+#define OS_EXT(n) win32_##n
 
-	if (socket.type == UDP) qsock_set_timeout(socket, 1, 0);
+#elif OS_LINUX
 
-	printf("Client socket connected to ip: %s port: %s\n", ip, port);
-	return socket;
+#define OS_EXT(n) linux_##n
+
+#endif // OS
+
+#define QSOCK_FUNC(r, n, ...) r OS_EXT(n)(__VA_ARGS__); r (*qsock_##n)(__VA_ARGS__) = &OS_EXT(n)
+
+QSOCK_FUNC(void, init_qsock, );
+QSOCK_FUNC(bool8, init_socket, struct QSock_Socket *sock, const char *ip, const char *port);
+QSOCK_FUNC(void, print_socket_error, );
+QSOCK_FUNC(s32, timeout, struct QSock_Socket sock, s32 seconds, s32 microseconds);
+QSOCK_FUNC(void, listen, struct QSock_Socket socket);
+QSOCK_FUNC(void, accept, struct QSock_Socket *sock, struct QSock_Socket *client);
+
+internal struct QSock_Address_Info
+addrinfo_to_address_info(struct addrinfo og) {
+    struct QSock_Address_Info info = {};
+    
+    info.family = og.ai_family;
+    info.socket_type = og.ai_socktype;
+    info.protocol = og.ai_protocol;
+    info.address_length = (u32)og.ai_addrlen;
+
+    info.address = (const char *)malloc(info.address_length + 1);
+    memset((void*)info.address, 0, info.address_length + 1);
+    memcpy((void*)info.address, og.ai_addr, info.address_length);
+
+    return info;
 }
 
-internal struct Socket
-qsock_server(const char *port, int type)
-{
+internal bool8
+qsock_client(QSock_Socket *sock, const char *ip, const char *port, enum QSock_Protocol protocol) {
+	sock.protocol = protocol;
+	socket.passive = false;
+	if (qsock_init_socket(sock, ip, port)) {
+
+		if (socket->protocol == UDP)
+			qsock_set_timeout(*sock, 1, 0);
+
+		printf("Client socket connected to ip: %s port: %s\n", ip, port);
+		return true;
+	} else {
+		qsock_print_platform_error();
+		return false;
+	}
+}
+
+internal bool8
+qsock_server(QSock_Socket *sock, const char *port, enum QSock_Protocol protocol) {
 	struct Socket socket = {};
 	socket.type = type;
 	socket.passive = true;
-	init_socket(&socket, NULL, port);
+	if (qsock_init_socket(&socket, NULL, port)) {
 
-	if (socket.type == TCP) qsock_listen(socket);
-
-	printf("Server socket set up with port %s\n", port);
-	return socket;
+		printf("Server socket set up with port %s\n", port);
+		return true;
+	} else {
+		qsock_print_platform_error();
+		return false;
+	}
 }
 
 internal void
-qsock_free_socket(struct Socket socket)
-{
+qsock_free_socket(struct Socket socket) {
 	close(socket.handle);
 	free(socket.other);
 }
 
+/*
 internal int
 qsock_general_recv(struct Socket *socket, const char *buffer, int buffer_size)
 {
@@ -152,5 +159,16 @@ qsock_general_send(struct Socket socket, const char *buffer, int buffer_size)
 
 	return bytes;
 }
+*/
+
+#ifdef OS_WINDOWS
+
+#include "win32_qsock.c";
+
+#elif OS_LINUX
+
+#include "qsock_linux.c";
+
+#endif // OS
 
 #endif // QSOCK_H
