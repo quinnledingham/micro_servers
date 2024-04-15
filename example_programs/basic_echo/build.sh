@@ -4,6 +4,7 @@
 # gcc src/convertor.c src/buffer.c src/socketM.c -o build/convertor
 # gcc src/voting.c src/buffer.c src/socketM.c -o build/voting
 # gcc src/driver.c -o build/driver
+mkdir -p ../../build
 
-gcc echo_client.c -o ../../build/echo_client
-gcc echo_server.c -o ../../build/echo_server
+gcc -I../../ -DOS_LINUX echo_client.cpp -o ../../build/echo_client
+gcc -I../../ -DOS_LINUX echo_server.cpp -o ../../build/echo_server

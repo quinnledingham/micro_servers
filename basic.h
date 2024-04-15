@@ -14,14 +14,27 @@
 
 #elif OS_LINUX
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+
+#include <time.h>
+#include <malloc.h>
+#include <stdio.h>
+#include <errno.h>
+
 #include <unistd.h>
+#include <stdarg.h>
+#include <ctype.h>
 
 #endif // OS
 
 #include <string.h>
-#include <stdbool.h> // C
-#include <stdint.h> // C
-//#include <cstdint> // C++
+//#include <stdbool.h> // C
+//#include <stdint.h> // C
+#include <cstdint> // C++
 
 #include <stdio.h>
 #include <malloc.h>

@@ -23,7 +23,14 @@ print_char_array(u32 output_stream, const char *char_array) {
 	fprintf(get_file_stream(output_stream), "%s", char_array);
 }
 
-#endif // OS_WINDOWS
+#elif OS_LINUX
+
+inline void
+print_char_array(u32 output_stream, const char *char_array) {
+	fprintf(get_file_stream(output_stream), "%s", char_array);
+}
+
+#endif // OS
 
 #define PRINT_BUFFER_SIZE 2000
 

@@ -146,13 +146,7 @@ qsock_send(struct QSock_Socket sock, struct QSock_Socket *connected, const char 
 
 #elif OS_LINUX
 
-internal void
-qsock_free_socket(struct Socket socket) {
-	close(socket.handle);
-	free(socket.other);
-}
-
-#include "qsock_linux.c";
+#include "linux_qsock.c"
 
 #endif // OS
 
