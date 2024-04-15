@@ -9,13 +9,11 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include "qsock.h"
-
 // Waits for a recieve on sock.
 // returns zero on success
 // https://www.it-swarm-fr.com/fr/c/udp-socket-set-timeout/1070229989/
 internal void
-qsock_set_timeout(struct Socket socket, int seconds, int microseconds) 
+linux_set_timeout(struct Socket socket, int seconds, int microseconds) 
 {
 	struct timeval tv;
 	tv.tv_sec = seconds;
@@ -27,39 +25,39 @@ qsock_set_timeout(struct Socket socket, int seconds, int microseconds)
 }
 
 internal int
-qsock_recv(struct Socket socket, const char *buffer, int buffer_size, int flags)
+linux_recv(struct Socket socket, const char *buffer, int buffer_size, int flags)
 {
 	int bytes = recv(socket.handle, (void*)buffer, buffer_size, flags);
-	if (bytes == -1) perror("qsock_recv() error");
+	if (bytes == -1) perror("linux_recv() error");
 	return bytes;
 }
 
 internal int
-qsock_recv_from(struct Socket socket, const char *buffer, int buffer_size, int flags, struct Address_Info *info)
+linux_recv_from(struct Socket socket, const char *buffer, int buffer_size, int flags, struct Address_Info *info)
 {
 	int bytes = recvfrom(socket.handle, (void*)buffer, buffer_size, flags, (struct sockaddr*)info->address, &info->address_length);
-	if (bytes == -1) perror("qsock_recv_from() error");
+	if (bytes == -1) perror("linux_recv_from() error");
 	return bytes;
 }
 
 internal int
-qsock_send(struct Socket socket, const char *buffer, int buffer_size, int flags)
+linux_send(struct Socket socket, const char *buffer, int buffer_size, int flags)
 {
 	int bytes = send(socket.handle, (void*)buffer, buffer_size, flags);
-	if (bytes == -1) perror("qsock_send() error");
+	if (bytes == -1) perror("linux_send() error");
 	return bytes;
 }
 
 internal int
-qsock_send_to(struct Socket socket, const char *buffer, int buffer_size, int flags, struct Address_Info info)
+linux_send_to(struct Socket socket, const char *buffer, int buffer_size, int flags, struct Address_Info info)
 {
 	int bytes = sendto(socket.handle, (void*)buffer, buffer_size, flags, (struct sockaddr*)info.address, info.address_length);
-	if (bytes == -1) perror("qsock_send_to() error");
+	if (bytes == -1) perror("linux_send_to() error");
 	return bytes;
 }
 
 internal void
-qsock_listen(struct Socket socket)
+linux_listen(struct Socket socket)
 {
 	int backlog = 5;
 	int error = listen(socket.handle, backlog);
@@ -67,14 +65,14 @@ qsock_listen(struct Socket socket)
 }
 
 internal void
-qsock_accept(struct Socket *socket)
+linux_accept(struct Socket *socket)
 {
 	if (!socket->passive) {
-		fprintf(stderr, "qsock_accept(): not a passive(server) socket\n");
+		fprintf(stderr, "linux_accept(): not a passive(server) socket\n");
 		return;
 	}
 	else if (socket->type != TCP) {
-		fprintf(stderr, "qsock_accept(): not a TCP socket\n");
+		fprintf(stderr, "linux_accept(): not a TCP socket\n");
 		return;
 	}
 
@@ -84,7 +82,7 @@ qsock_accept(struct Socket *socket)
 	unsigned int address_length;
 
 	new_socket.handle = accept(socket->handle, &address, &address_length);
-	if (new_socket.handle == -1) fprintf(stderr, "qsock_accept(): accept() call failed\n");
+	if (new_socket.handle == -1) fprintf(stderr, "linux_accept(): accept() call failed\n");
 
 	new_socket.info.address = (const char *)malloc(address_length);
 	memcpy((void*)new_socket.info.address, (void*)&address, address_length);
@@ -96,7 +94,7 @@ qsock_accept(struct Socket *socket)
 }
 
 internal const char*
-qsock_get_ip(struct Address_Info info)
+linux_get_ip(struct Address_Info info)
 {
 	struct sockaddr_in *c = (struct sockaddr_in *)info.address;
 	char *ip = (char *)malloc(80);
@@ -105,7 +103,7 @@ qsock_get_ip(struct Address_Info info)
 }
 
 internal const char*
-qsock_get_ip_from_web(const char *webname)
+linux_get_ip_from_web(const char *webname)
 {
 	printf("address: %s\n", webname);
 
@@ -114,7 +112,7 @@ qsock_get_ip_from_web(const char *webname)
 	info = (struct addrinfo*)malloc(sizeof(struct addrinfo));
 	hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo(webname, NULL, &hints, &info)) perror("qsock_get_ip_from_web() getaddrinfo error\n");
+    if (getaddrinfo(webname, NULL, &hints, &info)) perror("linux_get_ip_from_web() getaddrinfo error\n");
 
     struct sockaddr_in *address = (struct sockaddr_in *)info->ai_addr;
     char *ip = (char *)malloc(200);
@@ -135,7 +133,7 @@ qsock_get_ip_from_web(const char *webname)
 }
 
 internal struct Address_Info
-addrinfo_to_address_info(struct addrinfo og)
+linux_addrinfo_to_address_info(struct addrinfo og)
 {
 	struct Address_Info info = {};
 	info.family = og.ai_family;
@@ -153,7 +151,7 @@ addrinfo_to_address_info(struct addrinfo og)
 // find a address for the socket that works
 // ip == NULL for passive to get wildcard address
 internal void
-init_socket(struct Socket *sock, const char *ip, const char *port)
+linux_init_socket(struct Socket *sock, const char *ip, const char *port)
 {
 	struct addrinfo hints = {};
 	hints.ai_family = AF_INET; //IPv4
@@ -175,7 +173,7 @@ init_socket(struct Socket *sock, const char *ip, const char *port)
 		sock->handle = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
 		
 		if (sock->handle == -1) {
-			perror("qsock_socket(): socket() call failed");
+			perror("linux_socket(): socket() call failed");
 			continue;
 		}
 
@@ -190,7 +188,7 @@ init_socket(struct Socket *sock, const char *ip, const char *port)
 		}
 	}
 
-	sock->info = addrinfo_to_address_info(*ptr);
+	sock->info = linux_addrinfo_to_address_info(*ptr);
 	sock->other = (struct Socket*)malloc(sizeof(struct Socket));
 
 	freeaddrinfo(info);

@@ -2,9 +2,9 @@ internal struct QSock_Address_Info
 win32_addrinfo_to_address_info(struct addrinfo og) {
     struct QSock_Address_Info info = {};
     
-    info.family = (QSock_Family)og.ai_family;
-    info.socket_type = (QSock_Socket_Type)og.ai_socktype;
-    info.protocol = (QSock_Protocol)og.ai_protocol;
+    info.family = og.ai_family;
+    info.socket_type = og.ai_socktype;
+    info.protocol = og.ai_protocol;
     info.address_length = (u32)og.ai_addrlen;
 
     info.address = (const char *)malloc(info.address_length + 1);

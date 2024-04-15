@@ -19,9 +19,10 @@ enum QSock_Protocol {
 #define TCP_BUFFER_SIZE 65536
 
 struct QSock_Address_Info {
-	enum QSock_Family      family;
-	enum QSock_Socket_Type socket_type;
-	enum QSock_Protocol    protocol;
+	// WARNING: these are set to the values from the platforms enums, not the above enums
+	s32 family;
+	s32 socket_type;
+	s32 protocol;
 
 	u32 address_length;
 	const char *address; // sockaddr (socket address)
