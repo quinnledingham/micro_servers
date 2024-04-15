@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
 	qsock_init_qsock();
 
 	struct QSock_Socket client = {};
-	if (!qsock_client(&client, argv[1], argv[2], TCP)) {
+	if (!qsock_client(&client, argv[1], argv[2], UDP)) {
 		return 1;
 	}
 	char buffer[100];
@@ -33,12 +33,12 @@ int main(int argc, char *argv[]) {
 	while(1) {
 		memset(buffer, 0, 100);
 		get_user_input("Enter a message:", buffer);
-		bytes = qsock_send(client, buffer, 100);
+		bytes = qsock_send(client, NULL, buffer, 100);
 		if (bytes < 0) break;
 		
 		memset(buffer, 0, 100);
 		
-		bytes = qsock_recv(client, buffer, 100);
+		bytes = qsock_recv(client, NULL, buffer, 100);
 		if (bytes < 0) break;
 		printf("Recv: %s\n", buffer);
 	};

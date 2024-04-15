@@ -1,7 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "../../qsock.h"
+#include "basic.h"
 
 #include "buffer.h"
 
@@ -27,13 +24,16 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	system("clear");
+	//system("clear");
+	qsock_init_qsock();
 
-	struct Socket client = qsock_client(argv[1], argv[2], TCP);
+	struct QSock_Socket client = {};
+	if (!qsock_client(&client, argv[1], argv[2], TCP))
+		return 1;
 
 	while(1) {
 		
-		Message m = recv_message(&client);
+		Message m = recv_message(client, NULL);
 		printf("%s", m.text);
 
 		if (equal(m.text, "quit\n")) return 0;
@@ -52,13 +52,15 @@ int main(int argc, char *argv[])
 			//printf("encrypted vote %d\n", encrypted);
 		}
 
-		send_message(client, user_message);
+		send_message(client, NULL, user_message);
 
 		free_message(m);
 		free_message(user_message);
 	}
 
 	qsock_free_socket(client);
+
+	win32_cleanup_qsock();
 
 	return 0;
 }

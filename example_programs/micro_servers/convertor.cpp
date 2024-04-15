@@ -1,8 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-#include "../../qsock.h"
+#include "basic.h"
 
 #include "buffer.h"
 
@@ -16,17 +12,17 @@
 struct Conversion_Rate
 {
 	const char *tag;
-	r32 rate;
+	float32 rate;
 };
 global const Conversion_Rate rates[5] = {
-	{"USD",  1.0f    },
-	{"CAD",  1.24f   },
-	{"EURO", 0.86f   },
-	{"GBP",  0.73f   },
-	{"BTC",  0.000016}
+	{"USD",  1.0f     },
+	{"CAD",  1.24f    },
+	{"EURO", 0.86f    },
+	{"GBP",  0.73f    },
+	{"BTC",  0.000016f}
 };
 
-inline r32
+inline float32
 find_rate(const char *tag) 
 {
 	for (u32 i = 0; i < 5; i++) {
@@ -39,11 +35,21 @@ find_rate(const char *tag)
 
 int main(int argc, char *argv[])
 {
+	if (argc != 2) {
+		fprintf(stderr, "run convertor like this: ./ms_convertor <port>\n");
+		return 1;
+	} 
+
+	qsock_init_qsock();
+
 	char *port = argv[1];
-	Socket server = qsock_server(port, UDP);
+	QSock_Socket server = {};
+	if (!qsock_server(&server, port, UDP))
+		return 1;
 
 	while(1) {
-		Message received = recv_message(&server);
+		QSock_Socket client = {};
+		Message received = recv_message(server, &client);
 
 		// Using the micro service again
 		if (equal(received.system, "Connecting")) {
@@ -56,7 +62,7 @@ int main(int argc, char *argv[])
                           		   "British Pound(GBP), and Bitcoin(BTC).\n"
                           		   "Type quit to leave.\n");
 			m.system = string_malloc("clear");
-			send_message(server, m);
+			send_message(server, &client, m);
 			free_message(m);
 		}
 		else {
@@ -89,7 +95,7 @@ int main(int argc, char *argv[])
             sprintf(m.text, "%s %s = %.2f %s\n", amount, source, d, dest);
 
 			m.prompt = string_malloc("Enter: <amount> <source currency> <destination currency>: ");
-			send_message(server, m);
+			send_message(server, &client, m);
 
 			free_message(m);
 		}

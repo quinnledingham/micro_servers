@@ -1,18 +1,24 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-#include "../../qsock.h"
+#include "basic.h"
 
 #include "buffer.h"
 
 int main(int argc, char *argv[])
 {
+	if (argc != 2) {
+		fprintf(stderr, "run convertor like this: ./ms_translator <port>\n");
+		return 1;
+	} 
+
+	qsock_init_qsock();
+
 	char *port = argv[1];
-	Socket server = qsock_server(port, UDP);
+	QSock_Socket server = {};
+ 	if (!qsock_server(&server, port, UDP))
+		return 1;
 
 	while(1) {
-		Message received = recv_message(&server);
+		QSock_Socket client = {};
+		Message received = recv_message(server, &client);
 
 		// Using the micro service again
 		if (equal(received.system, "Connecting")) {
@@ -21,7 +27,7 @@ int main(int argc, char *argv[])
 			m.prompt = string_malloc("Enter a English word: ");
 			m.text = string_malloc("Connected to translator service.\nWords that can be translated:\nbread, yellow, hello, bye, chair\nType quit to leave\n");
 			m.system = string_malloc("clear");
-			send_message(server, m);
+			send_message(server, &client, m);
 			free_message(m);
 			//continue;
 		}
@@ -37,7 +43,7 @@ int main(int argc, char *argv[])
 			else if (equal(received.text, "chair"))  m.text = string_malloc_concat(f, "chaise\n");
 
 			m.prompt = string_malloc("Enter an English word: ");
-			send_message(server, m);
+			send_message(server, &client, m);
 
 			free_message(m);
 		}

@@ -1,8 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-#include "../../qsock.h"
+#include "basic.h"
 
 #include "buffer.h"
 
@@ -17,18 +13,18 @@ const char* mainmenu =
 	"0. Close Connection\n";
 
 internal void
-echo(Socket *server)
+echo(QSock_Socket *server, QSock_Socket *client)
 {
 	printf("Starting echo service\n");
 
 	Message m = {};
 	m.prompt = string_malloc("Enter a message: ");
 	m.text = string_malloc("Echo:\nWill send back whatever you send.\nType quit to leave.\n");
-	send_message(*server, m);
+	send_message(*server, client, m);
 	free_message(m);
 
 	while(1) {
-		Message received = recv_message(server);
+		Message received = recv_message(*server, client);
 		printf("%s\n", received.text);
 		
 		if (equal(received.text, "quit")) {
@@ -38,29 +34,30 @@ echo(Socket *server)
 		Message m = {};
 		m.prompt = string_malloc("Enter a message: ");
 		m.text = string_malloc_concat(received.text, "\n");
-		send_message(*server, m);
+		send_message(*server, client, m);
 
 		free_message(received);
 		free_message(m);
 	}
 }
 
-internal b32
-micro_server_pass_thru(Socket *server, const char *ip, const char *port, const char *system_message)
+internal bool32
+micro_server_pass_thru(QSock_Socket *server, QSock_Socket *client, const char *ip, const char *port, const char *system_message)
 {
-	b32 show_menu = true;
-	struct Socket client = qsock_client(ip, port, UDP);
+	bool32 show_menu = true;
+	struct QSock_Socket client_udp = {};
+	qsock_client(&client_udp, ip, port, UDP);
 
 	{
 		Message m = {};
 		m.system = string_malloc(system_message);
-		send_message(client, m);
+		send_message(client_udp, NULL, m);
 		free_message(m);
 		printf("Send connecting to port %s\n", port);
 	}
 
 	while(1) {
-		Message t_received = recv_message(&client);
+		Message t_received = recv_message(client_udp, NULL);
 
 		if (t_received.text_length == 0) {
 			// timed out
@@ -70,31 +67,32 @@ micro_server_pass_thru(Socket *server, const char *ip, const char *port, const c
 
 		printf("\n%s\n", t_received.text);
 
-		send_message(*server, t_received);
+		send_message(*server, client, t_received);
 
-		Message c_received = recv_message(server);
+		Message c_received = recv_message(*server, client);
 		if (equal(c_received.text, "quit")) {
 			break;
 		}
 
-		send_message(client, c_received);
+		send_message(client_udp, NULL, c_received);
 	}
 
-	qsock_free_socket(client);
+	qsock_free_socket(client_udp);
 	return show_menu;
 }
 
-internal b32
-micro_server_single(Socket *server, const char *ip, const char *port, const char *system_message)
+internal bool32
+micro_server_single(QSock_Socket *server, QSock_Socket *client, const char *ip, const char *port, const char *system_message)
 {
-	struct Socket client = qsock_client(ip, port, UDP);
+	struct QSock_Socket client_udp = {};
+	qsock_client(&client_udp, ip, port, UDP);
 
 	Message m = {};
 	m.system = string_malloc(system_message);
-	send_message(client, m);
+	send_message(client_udp, NULL, m);
 	free_message(m);
 
-	Message t_received = recv_message(&client);
+	Message t_received = recv_message(*server, &client_udp);
 
 	if (t_received.text_length == 0) {
 		// timed out
@@ -103,81 +101,81 @@ micro_server_single(Socket *server, const char *ip, const char *port, const char
 
 	printf("\n%s\n", t_received.text);
 
-	send_message(*server, t_received);
+	send_message(*server, client, t_received);
 
-	qsock_free_socket(client);
+	qsock_free_socket(client_udp);
 
 	return true;
 }
 
 internal void
-handle_client(const char *micro_services_ip, Socket *server)
+handle_client(const char *micro_services_ip, QSock_Socket *server, QSock_Socket *client)
 {
 	printf("Client Connected\n");
 
-	b32 show_menu = true;
+	bool32 show_menu = true;
 	while(1) {		
 		if (show_menu) {
 			Message m = {};
 			m.prompt = string_malloc("Command: ");
 			m.text = string_malloc(mainmenu);
-			send_message(*server, m);
+			send_message(*server, client, m);
 			free_message(m);
 			show_menu = false;
 		}
 
-		Message received = recv_message(server);
+		Message received = recv_message(*server, client);
 
 		int request = atoi(received.text);
 		switch(request) {
 			case 1: {
 				// Translator
-				show_menu = micro_server_pass_thru(server, micro_services_ip, "44690", "Connecting");
+				show_menu = micro_server_pass_thru(server, client, micro_services_ip, "44690", "Connecting");
 				if (!show_menu) {
 					Message m  = {};
 					m.text = string_malloc("Translator service is down.\n");
 					m.prompt = string_malloc("Command: ");
-					send_message(*server, m);
+					send_message(*server, client, m);
 					free_message(m);
 				}
 			} break;
 			case 2: {
 				// Convertor
-				show_menu = micro_server_pass_thru(server, micro_services_ip, "44691", "Connecting");
+				show_menu = micro_server_pass_thru(server, client, micro_services_ip, "44691", "Connecting");
 				if (!show_menu) {
 					Message m  = {};
 					m.text = string_malloc("Convertor service is down.\n");
 					m.prompt = string_malloc("Command: ");
-					send_message(*server, m);
+					send_message(*server, client, m);
 					free_message(m);
 				}
 			}break;
 			case 3: {
 				// Voting
-				show_menu = micro_server_pass_thru(server, micro_services_ip, "44692", "Connecting");
+				show_menu = micro_server_pass_thru(server, client, micro_services_ip, "44692", "Connecting");
 				if (!show_menu) {
 					Message m  = {};
 					m.text = string_malloc("Voting service is down.\n");
 					m.prompt = string_malloc("Command: ");
-					send_message(*server, m);
+					send_message(*server, client, m);
 					free_message(m);
 				}
 			} break;
 			case 4: {
 				// Voting Summary
-				if (!micro_server_single(server, micro_services_ip, "44692", "Summary")) {
+				if (!micro_server_single(server, client, micro_services_ip, "44692", "Summary")) {
 					Message m  = {};
 					m.text = string_malloc("Voting service is down.\n");
 					m.prompt = string_malloc("Command: ");
-					send_message(*server, m);
+					send_message(*server, client, m);
 					free_message(m);
 				}
 			} break;
-			case 9: echo(server); show_menu = true; break;
+			case 9: echo(server, client); show_menu = true; break;
 			case 0: {
 				Message m = {};
 				m.text = string_malloc("quit\n");
-				send_message(*server, m);
+				send_message(*server, client, m);
 				free_message(m);
 				printf("Client Disconnected\n");
 				return;
@@ -186,7 +184,7 @@ handle_client(const char *micro_services_ip, Socket *server)
 				Message m = {};
 				m.prompt = string_malloc("Command: ");
 				m.text = string_malloc("Not a service\n");
-				send_message(*server, m);
+				send_message(*server, client, m);
 				free_message(m);
 			} break;
 		}
@@ -203,13 +201,23 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    Socket server = qsock_server(argv[2], TCP);
+	qsock_init_qsock();
 
-    pid_t pid;
+    QSock_Socket server = {};
+	if (!qsock_server(&server, argv[2], TCP))
+		return 1;
+
+    //pid_t pid;
     while(1) {
-    	qsock_accept(&server);
-    	pid = fork();
-    	if (pid == 0) handle_client(argv[1], &server);
+		QSock_Socket client = {};
+		qsock_listen(server);
+    	qsock_accept(&server, &client);
+		handle_client(argv[1], &server, &client);
+		//DWORD thread_id;
+        //online.client_handle = CreateThread(0, 0, play_nine_client, (void*)state, 0, &thread_id);
+
+    	//pid = fork();
+    	//if (pid == 0) handle_client(argv[1], &server, &client);
     }
 
     qsock_free_socket(server);

@@ -1,3 +1,8 @@
+#include <stdlib.h>
+#include <sys/types.h>
+#include <time.h>
+#include <sys/timeb.h>
+
 #define BUFFER_SIZE 1000
 
 struct Message
@@ -16,33 +21,6 @@ global char global_buffer[BUFFER_SIZE];
 
 #define KEY 2387
 
-inline u32
-get_length(const char *string)
-{
-    if (string == 0)
-        return 0;
-    
-    u32 length = 0;
-    const char *ptr = string;
-    while(*ptr != 0)
-    {
-        length++;
-        ptr++;
-    }
-    return length;
-}
-
-inline char*
-string_malloc(const char *string)
-{
-    if (string == 0) return 0;
-    u32 length = get_length(string);
-    char* result = (char*)malloc(length + 1);
-    for (u32 i = 0; i < length; i++) result[i] = string[i];
-    result[length] = 0;
-    return result;
-}
-
 inline char*
 string_malloc_concat(const char *string, const char *add)
 {
@@ -57,22 +35,6 @@ string_malloc_concat(const char *string, const char *add)
 
 	result[string_length + add_length] = 0;
     return result;
-}
-
-inline b32
-equal(const char* a, const char *b)
-{
-    if (a == 0 && b == 0) return true;
-    if (a == 0 || b == 0) return false;
-    
-    int i = 0;
-    do
-    {
-        if (a[i] != b[i])
-            return false;
-    } while(a[i] != 0 && b[i++] != 0);
-    
-    return true;
 }
 
 inline const char*
@@ -128,18 +90,18 @@ copy_buffer_to_message(const char *buffer)
 }
 
 inline void
-send_message(Socket socket, Message m)
+send_message(QSock_Socket socket, QSock_Socket *connected, Message m)
 {
 	memset(global_buffer, 0, BUFFER_SIZE);
 	copy_message_to_buffer(m, global_buffer);
-	qsock_general_send(socket, global_buffer, BUFFER_SIZE);
+	qsock_send(socket, connected, global_buffer, BUFFER_SIZE);
 }
 
 inline Message
-recv_message(Socket *socket)
+recv_message(QSock_Socket socket, QSock_Socket *connected)
 {
 	Message m = {};
-	int bytes = qsock_general_recv(socket, global_buffer, BUFFER_SIZE);
+	int bytes = qsock_recv(socket, connected, global_buffer, BUFFER_SIZE);
 	if (bytes == 0) {
 		printf("Zero bytes received\n");
 		return m;

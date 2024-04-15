@@ -30,12 +30,10 @@ struct QSock_Address_Info {
 struct QSock_Socket {
 	s32 handle; // linux: file descriptor
 	enum QSock_Protocol protocol; // TCP or UDP
-
-	struct QSock_Address_Info info; // client: info about address of server connected to, server: info about server address
-	struct QSock_Address_Info recv_info; // most recent address that was received from (used for UDP)
-
 	bool32 passive; // if true it waits for connection requests to come in (ie server)
-	struct QSock_Socket *connected; // filled in qsock_accept(). it is the sending sock for server using TCP
+
+	struct QSock_Address_Info info; // info about the address of this socket
+	struct QSock_Address_Info connected; // client: info about address of server connected to, server: info about server address
 };
 
 #ifdef OS_WINDOWS
@@ -58,6 +56,7 @@ QSOCK_FUNC(void, listen, struct QSock_Socket socket);
 QSOCK_FUNC(void, accept, struct QSock_Socket *sock, struct QSock_Socket *client);
 QSOCK_FUNC(s32, send_to,   struct QSock_Socket socket, const char *buffer, int buffer_size, int flags, struct QSock_Address_Info info);
 QSOCK_FUNC(s32, recv_from, struct QSock_Socket socket, const char *buffer, int buffer_size, int flags, struct QSock_Address_Info *info);
+QSOCK_FUNC(void, free_socket, struct QSock_Socket socket);
 
 internal bool8
 qsock_client(struct QSock_Socket *sock, const char *ip, const char *port, enum QSock_Protocol protocol) {
@@ -91,37 +90,52 @@ qsock_server(struct QSock_Socket *sock, const char *port, enum QSock_Protocol pr
 }
 
 // Do proper send and recv for each protocol
+// if connected == NULL use sock.connected address
 internal s32
-qsock_recv(struct QSock_Socket sock, const char *buffer, u32 buffer_size) {
+qsock_recv(struct QSock_Socket sock, struct QSock_Socket *connected, const char *buffer, u32 buffer_size) {
 	QSock_Socket sock_to_use;
+	QSock_Address_Info send_address;
 
-	if (!sock.passive) {
-		sock_to_use = sock;
-	} else {
-		switch(sock.protocol) {
-			case TCP: sock_to_use = *sock.connected; break;
-			case UDP: sock_to_use = sock;      break;
+	if (connected != NULL) {
+		if (connected->info.address == 0) {
+	    connected->info.address = (const char *)malloc(sizeof(sockaddr));
+	    connected->info.address_length = sizeof(sockaddr);
+	    connected->info.family = (QSock_Family)AF_INET;
 		}
+	
+		send_address = connected->info;
+	} else {
+		send_address = sock.connected;
 	}
 
-	s32 bytes = qsock_recv_from(sock_to_use, buffer, buffer_size, 0, &sock.recv_info);
+	if (sock.passive && sock.protocol == TCP) {
+		sock_to_use = *connected;
+	} else {
+		sock_to_use = sock;
+	}
+		
+	s32 bytes = qsock_recv_from(sock_to_use, buffer, buffer_size, 0, &send_address);
 	return bytes;
 }
 
 internal s32
-qsock_send(struct QSock_Socket sock, const char *buffer, u32 buffer_size) {
+qsock_send(struct QSock_Socket sock, struct QSock_Socket *connected, const char *buffer, u32 buffer_size) {
 	QSock_Socket sock_to_use;
+	QSock_Address_Info send_address;
 
-	if (!sock.passive) {
-		sock_to_use = sock;
+	if (connected != NULL) {
+		send_address = connected->info;
 	} else {
-		switch(sock.protocol) {
-			case TCP: sock_to_use = *sock.connected; break;
-			case UDP: sock_to_use = sock;            break;
-		}
+		send_address = sock.connected;
 	}
 
-	s32 bytes = qsock_send_to(sock_to_use, buffer, buffer_size, 0, sock.recv_info);
+	if (sock.passive && sock.protocol == TCP) {
+		sock_to_use = *connected;
+	} else {
+		sock_to_use = sock;
+	}
+
+	s32 bytes = qsock_send_to(sock_to_use, buffer, buffer_size, 0, send_address);
 	return bytes;
 }
 

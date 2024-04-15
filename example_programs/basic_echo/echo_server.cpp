@@ -12,24 +12,27 @@ int main(int argc, char *argv[])
 	char buffer[100];
 	struct QSock_Socket server = {};
 	struct QSock_Socket client = {};
-	if (!qsock_server(&server, argv[1], TCP)) {
+	if (!qsock_server(&server, argv[1], UDP)) {
 		return 1;
 	}
-	qsock_listen(server);
-	qsock_accept(&server, &client);
+	//qsock_listen(server);
+	//qsock_accept(&server, &client);
 	
 	while(1) {
 		memset(buffer, 0, 100);
-		int bytes = qsock_recv(server, buffer, 100);
+		int bytes = qsock_recv(server, &client, buffer, 100);
 		if (bytes < 0) break;
 		
 		printf("%s %d\n", buffer, bytes);
 		
-		bytes = qsock_send(server, buffer, 100);
+		bytes = qsock_send(server, &client, buffer, 100);
 		if (bytes < 0) break;
 	}
 
 	printf("Closing Server\n");
+
+	qsock_free_socket(server);
+	qsock_free_socket(client);
 
 	return 0;
 }

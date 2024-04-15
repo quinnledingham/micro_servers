@@ -14,6 +14,12 @@ win32_addrinfo_to_address_info(struct addrinfo og) {
     return info;
 }
 
+internal void
+win32_free_address_info(QSock_Address_Info *info) {
+    if (info->address == 0) return;
+    platform_free((void *)info->address);
+}
+
 void win32_init_qsock() {
     WSADATA wsa_data;
     int result = WSAStartup(MAKEWORD(2, 2), &wsa_data);
@@ -21,6 +27,13 @@ void win32_init_qsock() {
         print("WSAStartup failed with error: %d\n", result);
     }
     
+}
+
+void win32_cleanup_qsock() {
+    s32 result = WSACleanup();
+    if (result != 0) {
+        print("WSACleanup failed with error: %d\n", result);
+    }
 }
 
 internal void
@@ -68,15 +81,24 @@ win32_init_socket(QSock_Socket *sock, const char *ip, const char *port) {
         }
     }
 
-    sock->info = win32_addrinfo_to_address_info(*ptr);
-    sock->recv_info = win32_addrinfo_to_address_info(*ptr);
+    if (sock->passive)
+        sock->info = win32_addrinfo_to_address_info(*ptr);
+    else
+        sock->connected = win32_addrinfo_to_address_info(*ptr);
     freeaddrinfo(info);
     
     return true;
 }
 
+void win32_free_socket(struct QSock_Socket sock) {
+    win32_free_address_info(&sock.info);
+    win32_free_address_info(&sock.connected);
+    
+    closesocket(sock.handle);
+}
+
 internal s32
-win32_select(QSock_Socket sock, s32 seconds, s32 microseconds) {
+win32_select(struct QSock_Socket sock, s32 seconds, s32 microseconds) {
     // Waits for a recieve on sock. if none it returns 0.
     fd_set fds;
     int n;
@@ -97,11 +119,6 @@ win32_select(QSock_Socket sock, s32 seconds, s32 microseconds) {
     }
     
     return 0; //No Timeout
-}
-
-internal void
-win32_free_socket(struct QSock_Socket socket) {
-    closesocket(socket.handle);
 }
 
 internal s32
@@ -179,6 +196,13 @@ win32_accept(struct QSock_Socket *socket, struct QSock_Socket *client) {
     client->info.address = (const char *)malloc(sizeof(sockaddr));
     memcpy((void*)client->info.address, (void*)&address, sizeof(sockaddr));
     client->info.address_length = address_length;
+}
 
-    socket->connected = client;
+internal const char*
+qsock_get_ip(struct QSock_Address_Info info) {
+    struct sockaddr *c = (struct sockaddr *)info.address;
+    char *ip = (char *)malloc(80);
+    memset(ip, 0, 80);
+    inet_ntop(info.family, c, ip, 80);
+   	return ip;
 }
